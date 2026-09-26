@@ -20,6 +20,7 @@ from kdeconnect_mcp.config import Config
 from kdeconnect_mcp.kcd_backend import (
     KcdBackend,
     KcdCommandError,
+    KcdTransportError,
     KcdUnavailable,
     default_socket_path,
     map_notification,
@@ -47,6 +48,8 @@ class FakeKcdServer:
         self.responses: dict[str, Any] = {"devices": []}
         self.errors: dict[str, str] = {}
         self.requests: list[dict[str, Any]] = []
+        # Cierra la conexion sin responder a las siguientes N peticiones.
+        self.drop_next_requests = 0
         # Una lista de eventos por sesion de watch (la ultima se reutiliza).
         self.watch_sessions: list[list[dict[str, Any]]] = []
         self.close_after_watch_session: set[int] = set()
@@ -90,6 +93,9 @@ class FakeKcdServer:
                 if cmd == "watch":
                     await self._serve_watch(reader, writer)
                     return
+                if self.drop_next_requests > 0:
+                    self.drop_next_requests -= 1
+                    return  # cierra el writer sin responder
                 if cmd in self.errors:
                     response: dict[str, Any] = {"ok": False, "error": self.errors[cmd]}
                 else:
@@ -349,7 +355,7 @@ def test_devices_and_command_payloads(tmp_path: Path):
 
 
 def test_request_conversations_sends_ipc(tmp_path: Path):
-    async def scenario() -> None:
+    async def scenario() -> FakeKcdServer:
         server = FakeKcdServer(tmp_path)
         server.responses["devices"] = [
             {
@@ -405,6 +411,57 @@ def test_connect_missing_socket_raises(tmp_path: Path):
             await backend.connect()
         with pytest.raises(KcdUnavailable):
             await backend.list_devices()
+
+    asyncio.run(scenario())
+
+
+def test_request_retries_after_dropped_connection(tmp_path: Path):
+    """Si kcd cierra sin responder, _request reintenta y acaba OK."""
+
+    async def scenario() -> FakeKcdServer:
+        server = FakeKcdServer(tmp_path)
+        server.responses["devices"] = [
+            {
+                "id": "a",
+                "name": "Pixel",
+                "type": "phone",
+                "state": "paired",
+                "connected": True,
+                "cert_fp": "aa",
+                "last_seen": None,
+            }
+        ]
+        server.drop_next_requests = 1
+        await server.start()
+        backend = KcdBackend(socket_path=server.socket_path)
+        try:
+            devices = await backend.list_devices()
+            assert [device.id for device in devices] == ["a"]
+        finally:
+            await backend.close()
+            await server.stop()
+        return server
+
+    server = asyncio.run(scenario())
+    assert server.connection_count >= 2
+    assert [request["cmd"] for request in server.requests] == ["devices", "devices"]
+
+
+def test_request_raises_transport_error_when_all_attempts_drop(tmp_path: Path):
+    async def scenario() -> None:
+        server = FakeKcdServer(tmp_path)
+        server.drop_next_requests = 99  # todas las conexiones se caen
+        await server.start()
+        backend = KcdBackend(socket_path=server.socket_path)
+        try:
+            with pytest.raises(KcdTransportError):
+                await backend.list_devices()
+            # KcdTransportError es subclase de KcdUnavailable.
+            with pytest.raises(KcdUnavailable):
+                await backend.request_pair("a")
+        finally:
+            await backend.close()
+            await server.stop()
 
     asyncio.run(scenario())
 

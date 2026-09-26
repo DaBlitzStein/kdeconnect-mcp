@@ -1,9 +1,10 @@
 """Servidor MCP (stdio) que expone la actividad del movil a agentes.
 
 Diseno:
-  - Un listener DBus (hilo aparte) captura eventos y los guarda redactados.
-  - Las tools solo leen SQLite; las que hablan con el movil usan una conexion
-    DBus efimera para no acoplarse al listener.
+  - Un listener kcd (socket Unix, hilo aparte) captura eventos y los guarda
+    redactados.
+  - Las tools solo leen SQLite; las que hablan con el movil abren una conexion
+    efimera al backend configurado (kcd por defecto) para no acoplarse al listener.
   - Toda salida vuelve a pasar por el redactor (defensa en profundidad).
 """
 
@@ -25,7 +26,7 @@ from .backends import (
 )
 from .config import Config
 from .fake_backend import FakeBackend
-from .listener import Ingestor, Listener, acquire_lock, load_secret
+from .listener import Ingestor, Listener, acquire_lock, load_secret, probe_lock
 from .models import KIND_CALL, KIND_NOTIFICATION, RawEvent
 from .pii import Redactor
 from .store import Store
@@ -151,11 +152,7 @@ class Runtime:
         alive = bool(self._thread and self._thread.is_alive())
         external = False
         if not owned:
-            probe = acquire_lock(self.cfg.lock_path)
-            if probe is None:
-                external = True
-            else:
-                probe.close()
+            external = probe_lock(self.cfg.lock_path)
         return {
             "server": "kdeconnect-mcp",
             "data_dir": str(self.cfg.data_dir),
@@ -324,7 +321,7 @@ def create_server(cfg: Config) -> MCPServer:
 
     @server.tool()
     async def list_active_notifications(device_id: str | None = None) -> dict[str, Any]:
-        """Notificaciones activas en el movil ahora mismo (via DBus, redactadas)."""
+        """Notificaciones activas en el movil ahora mismo (backend configurado, redactadas)."""
         ids = [device_id] if device_id else None
         if runtime.cfg.fake:
             raws = await FakeBackend(runtime.cfg).fetch_active_notifications(ids)
@@ -334,7 +331,9 @@ def create_server(cfg: Config) -> MCPServer:
                 "notifications": [runtime.present_raw(raw) for raw in raws],
             }
         if backend_label(runtime.cfg) == "kcd":
-            events = runtime.store.query_events(kind=KIND_NOTIFICATION, limit=100)
+            events = runtime.store.query_events(
+                kind=KIND_NOTIFICATION, device_id=device_id, limit=100
+            )
             return {
                 "source": "cache",
                 "warning": "kcd no expone notificaciones activas; usa get_activity (captura en vivo).",
@@ -346,7 +345,9 @@ def create_server(cfg: Config) -> MCPServer:
                 runtime.cfg, lambda backend: backend.fetch_active_notifications(ids)
             )
         except BACKEND_UNAVAILABLE as exc:
-            events = runtime.store.query_events(kind=KIND_NOTIFICATION, limit=100)
+            events = runtime.store.query_events(
+                kind=KIND_NOTIFICATION, device_id=device_id, limit=100
+            )
             return {
                 "source": "cache",
                 "warning": str(exc),

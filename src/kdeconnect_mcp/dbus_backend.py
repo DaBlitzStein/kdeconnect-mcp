@@ -521,13 +521,3 @@ class KdeConnectBackend:
                 if event is not None:
                     events.append(event)
         return events
-
-
-async def with_backend(action: Callable[[KdeConnectBackend], Awaitable[Any]]) -> Any:
-    """Ejecuta `action` con una conexion DBus efimera (para tools MCP live)."""
-    backend = KdeConnectBackend()
-    await backend.connect()
-    try:
-        return await action(backend)
-    finally:
-        await backend.close()

@@ -653,16 +653,3 @@ class KcdBackend:
     def cached_device(self, device_id: str) -> Device | None:
         """Ultimo estado conocido del dispositivo (util para tools de solo lectura)."""
         return self._devices.get(device_id)
-
-
-async def with_kcd_backend(
-    action: Callable[[KcdBackend], Any],
-    config: Any | None = None,
-) -> Any:
-    """Ejecuta `action` con una conexion kcd efimera (para tools MCP live)."""
-    backend = KcdBackend(config)
-    await backend.connect()
-    try:
-        return await action(backend)
-    finally:
-        await backend.close()

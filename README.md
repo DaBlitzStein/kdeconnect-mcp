@@ -1,5 +1,7 @@
 # kdeconnect-mcp
 
+[![GitHub stars](https://img.shields.io/github/stars/DaBlitzStein/kdeconnect-mcp?style=social)](https://github.com/DaBlitzStein/kdeconnect-mcp)
+
 MCP server que expone **llamadas, SMS y notificaciones** de un movil Android a
 un agente, via **KDE Connect**, con un sistema de **PII** que impide que los
 codigos de autorizacion (OTP), numeros de tarjeta, IBAN y telefonos completos
@@ -7,7 +9,7 @@ lleguen al agente o toquen el disco. Los nombres de contacto y de app si son
 visibles.
 
 ```
-movil Android ──KDE Connect──> kdeconnectd ──DBus──> listener ──PII──> SQLite ──MCP──> agente
+movil Android ──KDE Connect v8──> kcd (Go, headless) ──socket Unix──> listener ──PII──> SQLite ──MCP──> agente
 ```
 
 ## Que redacta (y que no)
@@ -38,20 +40,18 @@ config para que cualquier codigo suyo se redacte aunque falte la palabra clave.
 
 ## Requisitos
 
-- Linux de escritorio con sesion grafica y bus de sesion DBus.
-- `kdeconnect` en el escritorio:
-  ```bash
-  sudo apt install kdeconnect      # Ubuntu/Debian
-  systemctl --user enable --now kdeconnect.service   # o abrilo desde el menu
-  ```
-- Movil con KDE Connect emparejado y los plugins **Notificaciones**, **SMS** y
-  **Telefonia** activos (en la app: Ajustes > Plugins).
-- Python >= 3.11 y [uv](https://docs.astral.sh/uv/).
+- Linux; vale **headless** (sin sesion grafica, sin Qt/KDE).
+- Sesion de usuario con systemd (`systemctl --user`) para kcd y el listener.
+- [uv](https://docs.astral.sh/uv/) para instalar/ejecutar (gestiona Python >= 3.11).
+- Movil Android con la app **KDE Connect** y los plugins **Notificaciones**,
+  **SMS** y **Telefonia** activos (en la app: Ajustes > Plugins).
+- Opcional: backend DBus legacy si ya usas `kdeconnectd` (`backend: dbus`).
 
-Verifica el emparejamiento con:
+El daemon headless [`kcd`](https://github.com/bethropolis/kcd) lo instala
+`kdeconnect-mcp provision` (binario unico, sin Qt). Verifica el estado con:
 
 ```bash
-uv run kdeconnect-mcp doctor
+kdeconnect-mcp doctor      # o: uv run kdeconnect-mcp doctor, desde el repo
 ```
 
 ## Instalacion
@@ -114,18 +114,17 @@ En `~/.config/opencode/opencode.json`:
 ### Listener permanente (recomendado)
 
 El servidor MCP captura mientras hay una sesion de agente. Para capturar
-siempre (aunque el agente este cerrado), instala el service de usuario:
+siempre (aunque el agente este cerrado), instala la herramienta y provisiona:
 
 ```bash
-uv tool install /ruta/a/kdeconnect-mcp   # deja el binario en ~/.local/bin
-mkdir -p ~/.config/systemd/user
-cp systemd/kdeconnect-mcp-listen.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now kdeconnect-mcp-listen.service
+uv tool install git+https://github.com/DaBlitzStein/kdeconnect-mcp   # o: uv tool install kdeconnect-mcp
+kdeconnect-mcp provision   # instala kcd + unidades systemd de usuario y las arranca
 ```
 
-El lock (`listener.lock`) garantiza un unico escritor; si el service ya corre,
-el servidor MCP solo lee la misma base de datos.
+`provision` escribe la unidad con el interprete real de la instalacion, asi que
+funciona igual desde el repo o desde `uv tool`. El lock (`listener.lock`)
+garantiza un unico escritor; si el service ya corre, el servidor MCP solo lee la
+misma base de datos. Al terminar, el CLI te recuerda dejar una estrella en el repo.
 
 ## Operacion con kcd
 
@@ -151,21 +150,22 @@ cambiarla):
 3. Extrae el binario y lo instala en `~/.local/bin/kcd` (chmod +x).
 4. Escribe `~/.config/systemd/user/kcd.service`
    (`ExecStart=%h/.local/bin/kcd daemon`) y `kdeconnect-mcp-listen.service`
-   (`ExecStart=<proyecto>/.venv/bin/python -m kdeconnect_mcp listen`, sin
-   depender del PATH de systemd).
+   (`ExecStart=<interprete-instalado> -m kdeconnect_mcp listen`, sin depender
+   del PATH de systemd).
 5. `systemctl --user daemon-reload`; salvo `--no-start`, hace
    `enable --now` de ambos servicios.
 
 ### Emparejamiento
 
 ```bash
-uv run kdeconnect-mcp pair <deviceId>   # inicia el pairing desde el escritorio
-uv run kdeconnect-mcp pair_listen       # escucha y acepta solicitudes del movil
+~/.local/bin/kcd devices              # lista dispositivos y estado
+~/.local/bin/kcd pair                 # escucha y acepta solicitudes del movil
+~/.local/bin/kcd pair <deviceId>      # inicia el pairing desde el escritorio
 ```
 
 El flujo es TLS con huella SHA-256: confirma la huella en el movil cuando
-aparezca la solicitud. Desde el agente, `scan_devices` y `request_pair` cubren
-lo mismo.
+aparezca la solicitud. Desde el agente, las tools `scan_devices`,
+`request_pair`, `accept_pairing` y `reject_pairing` cubren lo mismo.
 
 ### Plugins en el movil
 
@@ -178,18 +178,24 @@ aunque el emparejamiento exista.
 - El listener re-sincroniza dispositivos al conectar y mantiene abierto el
   stream de pairing; si el socket cae, reconecta con backoff (1s-30s).
 - `kcd devices` lista los dispositivos vistos por el daemon.
-- `uv run kdeconnect-mcp doctor` muestra socket, version de kcd y estado de las
-  unidades systemd.
+- `kdeconnect-mcp doctor` (o `uv run kdeconnect-mcp doctor` desde el repo)
+  muestra socket, version de kcd, estado de las unidades systemd y el lock del
+  listener.
 - Refresco forzado: `systemctl --user restart kdeconnect-mcp-listen.service`.
 
 ### Limites con kcd
 
-- **Sin backfill de historial SMS**: solo se captura lo que llega mientras el
-  listener esta activo.
-- **`list_active_notifications` no soportado**: no hay consulta en vivo de
-  notificaciones activas; usa `get_activity`.
-- **`sync_sms_history` no soportado**: devuelve un error explicito.
-- La release v1.20.0 solo publica binario para Linux x86_64.
+- **SMS por polling**: kcd no empuja los SMS; el listener pide las
+  conversaciones (`sms_request_conversations`) al conectar y cada
+  `capture.sms_poll_seconds` (300 s por defecto; `0` lo desactiva). El movil
+  reenvia su historial cacheado en cada ciclo: el dedup lo absorbe, pero con
+  intervalos muy bajos hay trafico/CPU/bateria de mas (60 s funciona bien).
+- **`list_active_notifications` no soportado en kcd**: usa `get_activity`
+  (la captura en vivo si trae las notificaciones nuevas).
+- **`sync_sms_history` no soportado en kcd**: devuelve un error explicito; el
+  polling ya trae el historial.
+- La release v1.20.0 de kcd solo publica binario Linux x86_64; en otras
+  arquitecturas `provision` falla con error claro.
 
 ## Herramientas MCP
 
@@ -198,14 +204,16 @@ aunque el emparejamiento exista.
 | `get_status` | Estado del listener, captura y PII |
 | `list_devices` | Dispositivos conocidos (BD) |
 | `get_activity` | Timeline filtrable (`kind`, `app`, `since_minutes`, ...) |
+| `get_events` / `wait_for_events` | Consumo incremental por cursor (`after_id`); long-poll |
 | `search_activity` | Busqueda de texto sobre lo redactado |
 | `get_conversation` | Hilo de SMS por telefono/contacto |
 | `get_call_log` | Llamadas; `only_missed=true` para perdidas |
-| `list_active_notifications` | Notificaciones activas en el movil ahora (DBus en vivo) |
+| `list_active_notifications` | Notificaciones activas en el movil (solo backend DBus; en kcd, cache) |
 | `acknowledge_events` | Marca leidos por ids o antiguedad |
 | `get_redaction_stats` | Redacciones por categoria |
-| `sync_sms_history` | Pide al movil las conversaciones cacheadas |
-| `scan_devices` / `request_pair` | Emparejamiento |
+| `sync_sms_history` | Pide al movil las conversaciones cacheadas (solo DBus) |
+| `scan_devices` / `request_pair` | Emparejamiento: listar y solicitar |
+| `accept_pairing` / `reject_pairing` | Aceptar/rechazar solicitudes entrantes (kcd) |
 
 ## CLI
 
@@ -230,6 +238,9 @@ Ver `config/config.example.yaml`. Se carga de
 
 Claves utiles:
 
+- `backend`: `kcd` (por defecto) | `dbus` | `fake`.
+- `kcd.socket_path`: ruta al socket de kcd (por defecto `$XDG_RUNTIME_DIR/kcd/kcd.sock`).
+- `capture.sms_poll_seconds`: cada cuanto se piden las conversaciones SMS (0 = off).
 - `redaction.phone.mode`: `off` | `partial` (por defecto, ultimos 3) | `full`.
 - `redaction.keywords`: palabras que activan la redaccion de codigos cercanos.
 - `redaction.sensitive_apps`: apps donde todo codigo se redacta siempre.
@@ -238,7 +249,7 @@ Claves utiles:
 ## Desarrollo
 
 ```bash
-uv run pytest          # 37 tests: PII, store, ingesta, fake E2E, MCP stdio
+uv run pytest          # 93 tests: PII, store, ingesta, backends, poll SMS, tools MCP, provision
 ```
 
 Estructura:
@@ -246,17 +257,20 @@ Estructura:
 - `pii.py` — motor de redaccion (categorias, solapes, enmascarado de telefono).
 - `listener.py` — ingesta: redacta, deduplica, mergea llamadas, persiste.
 - `store.py` — SQLite WAL + FTS5, solo texto redactado.
-- `dbus_backend.py` — DBus KDE Connect (interfaces verificadas contra master y v24.02).
+- `kcd_backend.py` — cliente del socket de kcd (watch NDJSON + comandos IPC).
+- `backends.py` — factoria `kcd` | `dbus` | `fake`.
+- `dbus_backend.py` — DBus KDE Connect (legacy; interfaces verificadas contra master y v24.02).
 - `fake_backend.py` — movil simulado para desarrollo/tests.
-- `server.py` — tools MCP; `cli.py` — comandos.
+- `server.py` — tools MCP; `cli.py` — comandos; `config.py` — config YAML.
 
 ## Limitaciones
 
 - Las llamadas se exponen como eventos `ringing`/`missedCall` (no hay audio ni
   estado "en curso" persistente en KDE Connect).
-- Los SMS se reciben por la API de conversaciones; en la primera conexion se
-  piden las conversaciones cacheadas al movil (`sync_sms_history`).
-- No hay envio de SMS ni respuesta a notificaciones (posible extension).
+- Los SMS se reciben pidiendo las conversaciones al movil (polling; ver
+  "Limites con kcd").
+- No hay tool MCP de envio de SMS ni de respuesta a notificaciones (el backend
+  lo soporta; extension pendiente).
 - El escritorio debe estar encendido y con KDE Connect conectado al movil.
 
 ## Diagramas (mermaid con Firefox headless, sin Chrome)

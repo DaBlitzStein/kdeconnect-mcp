@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -26,7 +27,7 @@ from .backends import (
 )
 from .config import DEFAULT_CONFIG_PATH, load_config
 from .fake_backend import FakeBackend
-from .listener import Ingestor, Listener, acquire_lock, load_secret
+from .listener import Ingestor, Listener, acquire_lock, load_secret, probe_lock
 from .pii import Redactor
 from .store import Store
 
@@ -82,6 +83,8 @@ redaction:
     # - santander
     # - caixabank
 """
+
+STAR_URL = "https://github.com/DaBlitzStein/kdeconnect-mcp"
 
 # ------------------------------------------------------------------ kcd install
 KCD_DEFAULT_VERSION = "v1.20.0"
@@ -292,8 +295,9 @@ def _setup_logging(level: str) -> None:
     )
 
 
-def _build_backend(cfg):
-    return build_backend(cfg)
+def _star_nudge() -> None:
+    print()
+    print(f"Si esto te resulta util, deja una estrella en GitHub: {STAR_URL}")
 
 
 def _build_ingestor(cfg) -> Ingestor:
@@ -316,7 +320,7 @@ def cmd_listen(cfg) -> int:
     if handle is None:
         print(f"Ya hay un listener activo (lock: {cfg.lock_path})", file=sys.stderr)
         return 1
-    backend = _build_backend(cfg)
+    backend = build_backend(cfg)
     listener = Listener(cfg, ingestor.store, backend, ingestor)
 
     async def main() -> None:
@@ -329,9 +333,6 @@ def cmd_listen(cfg) -> int:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("listener detenido", file=sys.stderr)
-    except BACKEND_UNAVAILABLE as exc:
-        print(f"KDE Connect no disponible: {exc}", file=sys.stderr)
-        return 2
     finally:
         handle.close()
     return 0
@@ -421,14 +422,19 @@ def cmd_demo(cfg) -> int:
         ingestor.handle(event)
     print("Demo con backend simulado; datos en", cfg.db_path, file=sys.stderr)
     args = argparse.Namespace(kind=None, since_minutes=1440, limit=20, json=False)
-    return cmd_events(cfg, args)
+    rc = cmd_events(cfg, args)
+    _star_nudge()
+    return rc
 
 
 def cmd_provision(cfg, args) -> int:
     version = str(args.version).strip()
     semver = version.removeprefix("v")
-    if not semver:
-        print("Version de kcd invalida (usa p.ej. v1.20.0)", file=sys.stderr)
+    if not re.fullmatch(r"\d+\.\d+\.\d+", semver):
+        print(
+            f"Version de kcd invalida: {version!r} (formato esperado: vX.Y.Z)",
+            file=sys.stderr,
+        )
         return 2
     tag = f"v{semver}"
     tarball_name = f"kcd_{semver}_{KCD_ARCH}.tar.gz"
@@ -545,6 +551,7 @@ def cmd_provision(cfg, args) -> int:
             file=sys.stderr,
         )
         return 1
+    _star_nudge()
     return 0
 
 
@@ -559,12 +566,7 @@ def cmd_doctor(cfg) -> int:
         "fake_backend": cfg.fake,
         "db": runtime.store.stats(),
     }
-    handle = acquire_lock(cfg.lock_path)
-    if handle is None:
-        report["listener_lock"] = "held-by-another-process"
-    else:
-        report["listener_lock"] = "free"
-        handle.close()
+    report["listener_lock_held"] = probe_lock(cfg.lock_path)
     report["kcd"] = _kcd_check()
     report["systemd_units"] = {
         unit: _unit_is_active(unit) for unit in (KCD_UNIT_NAME, LISTENER_UNIT_NAME)

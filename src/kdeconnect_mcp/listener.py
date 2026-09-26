@@ -1,4 +1,4 @@
-"""Listener DBus: convierte eventos del movil en filas SQLite ya redactadas."""
+"""Listener kcd (socket Unix): convierte eventos del movil en filas SQLite ya redactadas."""
 
 from __future__ import annotations
 
@@ -44,6 +44,29 @@ def acquire_lock(path: str | Path):
     handle.write(str(os.getpid()))
     handle.flush()
     return handle
+
+
+def probe_lock(path: str | Path) -> bool:
+    """Indica si OTRO proceso mantiene el flock de `path` sin truncarlo ni retenerlo.
+
+    Abre el fichero (O_RDWR|O_CREAT, sin truncar), intenta el flock exclusivo
+    no bloqueante y lo libera si lo consigue. El fd se cierra siempre; si el
+    fichero no se puede abrir se asume que no hay listener externo.
+    """
+    path = Path(path)
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+    except OSError:
+        return False
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return True
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    finally:
+        os.close(fd)
 
 
 def load_secret(data_dir: str | Path) -> bytes:
@@ -243,7 +266,7 @@ class Listener:
             try:
                 requested = await requester()
                 if requested:
-                    log.info("poll SMS: conversaciones pedidas a %s", requested)
+                    log.debug("poll SMS: conversaciones pedidas a %s", requested)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - el poll no debe tumbar el listener

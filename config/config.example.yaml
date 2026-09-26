@@ -2,6 +2,9 @@
 # Copiar a ~/.config/kdeconnect-mcp/config.yaml (o usar: kdeconnect-mcp config-init)
 data_dir: ~/.local/state/kdeconnect-mcp
 log_level: INFO
+backend: kcd             # kcd | dbus | fake
+kcd:
+  socket_path: null      # null = $XDG_RUNTIME_DIR/kcd/kcd.sock
 
 capture:
   sms: true
@@ -9,6 +12,7 @@ capture:
   notifications: true
   ignore_apps: []        # ej. ["facebook", "instagram"]
   min_body_chars: 0
+  sms_poll_seconds: 300  # kcd no empuja SMS: pide conversaciones cada N s (0 = off)
 
 redaction:
   enabled: true
