@@ -1,6 +1,7 @@
 # kdeconnect-mcp
 
 [![GitHub stars](https://img.shields.io/github/stars/DaBlitzStein/kdeconnect-mcp?style=social)](https://github.com/DaBlitzStein/kdeconnect-mcp)
+[![PyPI](https://img.shields.io/pypi/v/kdeconnect-mcp)](https://pypi.org/project/kdeconnect-mcp/)
 
 MCP server que expone **llamadas, SMS y notificaciones** de un movil Android a
 un agente, via **KDE Connect**, con un sistema de **PII** que impide que los
@@ -68,11 +69,8 @@ uv run kdeconnect-mcp demo        # prueba el pipeline con datos simulados
 `uvx` es el equivalente a `npx` en Python: ejecuta el paquete sin clonar ni instalar.
 
 ```bash
-# desde GitHub (disponible ya)
-uvx --from git+https://github.com/DaBlitzStein/kdeconnect-mcp kdeconnect-mcp serve
-
-# cuando este publicado en PyPI
-uvx kdeconnect-mcp serve
+uvx kdeconnect-mcp serve    # desde PyPI
+# sin pasar por PyPI: uvx --from git+https://github.com/DaBlitzStein/kdeconnect-mcp kdeconnect-mcp serve
 ```
 
 Configuracion en un agente MCP (opencode, Claude Code, Cursor, LibreFang...):
@@ -80,7 +78,7 @@ Configuracion en un agente MCP (opencode, Claude Code, Cursor, LibreFang...):
 ```json
 "kdeconnect": {
   "type": "local",
-  "command": ["uvx", "--from", "git+https://github.com/DaBlitzStein/kdeconnect-mcp", "kdeconnect-mcp", "serve"],
+  "command": ["uvx", "kdeconnect-mcp", "serve"],
   "enabled": true
 }
 ```
@@ -88,7 +86,7 @@ Configuracion en un agente MCP (opencode, Claude Code, Cursor, LibreFang...):
 Listener permanente (captura aunque no haya agente abierto): instala la herramienta y provisiona:
 
 ```bash
-uv tool install git+https://github.com/DaBlitzStein/kdeconnect-mcp   # o: uv tool install kdeconnect-mcp
+uv tool install kdeconnect-mcp   # o: uv tool install git+https://github.com/DaBlitzStein/kdeconnect-mcp
 kdeconnect-mcp provision
 ```
 
