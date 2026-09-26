@@ -1,0 +1,12 @@
+flowchart LR
+    W[watch abierto]
+    R[reconectar 1s-30s]
+    SY[resync: devices + pair_listen]
+    D[device.connected / disconnect]
+    P[pair.requested]
+    A[Agente: pairing_requests]
+    W -->|socket caido| R
+    R -->|ok| SY
+    SY --> W
+    D --> SY
+    P --> A

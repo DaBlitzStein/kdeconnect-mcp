@@ -1,0 +1,47 @@
+# Configuracion de kdeconnect-mcp
+# Copiar a ~/.config/kdeconnect-mcp/config.yaml (o usar: kdeconnect-mcp config-init)
+data_dir: ~/.local/state/kdeconnect-mcp
+log_level: INFO
+
+capture:
+  sms: true
+  calls: true
+  notifications: true
+  ignore_apps: []        # ej. ["facebook", "instagram"]
+  min_body_chars: 0
+
+redaction:
+  enabled: true
+  placeholder: "[REDACTADO:{category}]"
+  window_chars: 40       # distancia a la palabra clave para considerar un codigo
+  otp_min_digits: 4
+  otp_max_digits: 15
+  redact_cards: true
+  redact_iban: true
+  phone:
+    mode: partial        # off | partial | full
+    show_last: 3
+    keep_country_code: true
+  # Palabras que activan la redaccion de codigos cercanos
+  keywords:
+    - codigo
+    - contraseña
+    - autorizacion
+    - verificacion
+    - clave
+    - pin
+    - token
+    - otp
+    - code
+    - password
+    - verification
+    - do not share
+  # Apps cuyos codigos se redactan siempre, aunque falte palabra clave
+  sensitive_apps:
+    - authenticator
+    - authy
+    - bitwarden
+    - 1password
+    # - bbva
+    # - santander
+    # - caixabank

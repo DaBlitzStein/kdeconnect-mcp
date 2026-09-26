@@ -1,0 +1,17 @@
+# Unidad de referencia del daemon kcd (Go, protocolo KDE Connect v8, headless).
+# `kdeconnect-mcp provision` escribe esta misma unidad en
+# ~/.config/systemd/user/kcd.service y la arranca. Instalacion manual:
+#   mkdir -p ~/.config/systemd/user ~/.local/bin
+#   cp systemd/kcd.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now kcd.service
+[Unit]
+Description=kcd daemon (KDE Connect protocol v8, headless)
+
+[Service]
+ExecStart=%h/.local/bin/kcd daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

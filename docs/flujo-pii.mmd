@@ -1,0 +1,17 @@
+flowchart LR
+    IN[title / body / ticker / meta]
+    NF[Normalizar NFC + casefold]
+    OTP[OTP: 4-15 digitos cerca de keyword o app sensible]
+    CARD[Tarjeta: 13-19 digitos]
+    IBAN[IBAN]
+    TEL[Telefono: partial / full / off]
+    OUT[Texto redactado + informe]
+    IN --> NF
+    NF --> OTP
+    OTP -->|si| OUT
+    NF --> CARD
+    CARD -->|si| OUT
+    NF --> IBAN
+    IBAN -->|si| OUT
+    NF --> TEL
+    TEL --> OUT

@@ -1,0 +1,21 @@
+# Listener permanente: captura eventos aunque no haya agente conectado.
+# `kdeconnect-mcp provision` instala esta unidad en ~/.config/systemd/user/
+# (con la ruta real del proyecto) y ejecuta enable --now. Instalacion manual:
+#   mkdir -p ~/.config/systemd/user
+#   cp systemd/kdeconnect-mcp-listen.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now kdeconnect-mcp-listen.service
+# Nota: las rutas asumen el proyecto en ~/kdeconnect-mcp; ajustalas si no.
+[Unit]
+Description=kdeconnect-mcp listener (SMS, llamadas y notificaciones con redaccion PII)
+
+[Service]
+WorkingDirectory=%h/kdeconnect-mcp
+ExecStart=%h/kdeconnect-mcp/.venv/bin/python -m kdeconnect_mcp listen
+Environment=KDCONNECT_MCP_CONFIG=%h/.config/kdeconnect-mcp/config.yaml
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,20 @@
+flowchart TB
+    subgraph MOVIL["Móvil Android"]
+        APP["App oficial<br/>KDE Connect"]
+    end
+
+    subgraph SRV["Servidor headless (sin X / Wayland / Qt)"]
+        KCD["kcd (Go, upstream, pin v1.20.0)<br/>NO se toca"]
+        subgraph KMCP["kcd-mcp (nuestro)"]
+            BE["kcd_backend<br/>watch NDJSON + comandos"]
+            PII["Motor PII<br/>otp · tarjeta · IBAN · teléfono"]
+            DB[("SQLite WAL + FTS5<br/>solo redactado + HMAC")]
+            MCP["Servidor MCP<br/>stdio (+ HTTP opcional)"]
+        end
+        AG["Agente"]
+    end
+
+    APP -- "protocolo KDE Connect v8<br/>TLS · UDP 1716 · TCP 1716-1764" --> KCD
+    BE <-- "socket Unix JSON/NDJSON<br/>/run/user/1000/kcd/kcd.sock" --> KCD
+    BE --> PII --> DB --> MCP
+    AG -- "MCP" --> MCP

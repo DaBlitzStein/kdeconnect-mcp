@@ -1,0 +1,15 @@
+flowchart LR
+    APP[Movil: app KDE Connect]
+    KCD[kcd Go upstream pin v1.20.0 - NO se toca]
+    BE[kcd_backend - watch NDJSON + comandos]
+    PII[Motor PII]
+    DB[SQLite - solo redactado]
+    MCP[Servidor MCP - stdio]
+    AG[Agente]
+    APP -->|v8 - TLS - UDP 1716| KCD
+    KCD -->|socket Unix JSON/NDJSON| BE
+    BE --> PII
+    PII --> DB
+    DB --> MCP
+    AG -->|MCP| MCP
+    MCP -->|pair - dismiss - reply - send_sms| KCD

@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant M as Movil
+    participant K as kcd
+    participant B as kcd_backend
+    participant P as PII
+    participant D as SQLite
+    participant A as MCP tools
+    M->>K: SMS / notificacion / llamada (TLS)
+    K-->>B: watch NDJSON
+    B->>P: redact(title/body/sender/contact/meta)
+    P-->>B: redactado + informe
+    B->>D: INSERT redactado + HMAC dedup
+    A->>D: get_activity / search / get_conversation
+    D-->>A: solo redactado

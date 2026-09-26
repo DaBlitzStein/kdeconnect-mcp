@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant M as Movil
+    participant K as kcd
+    participant B as kcd-mcp
+    participant A as Agente
+    A->>B: pair_device(deviceId)
+    B->>K: cmd pair deviceId
+    K->>M: solicitud TLS + huella SHA-256
+    M-->>K: acepta
+    K-->>B: pair.accepted
+    Note over M,K: Si inicia el movil, kcd emite pair.requested
+    K-->>B: pair.requested
+    B-->>A: pairing_requests
+    A->>B: accept_pairing(deviceId)
+    B->>K: cmd pair accept
