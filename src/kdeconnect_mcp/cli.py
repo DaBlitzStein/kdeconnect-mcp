@@ -108,19 +108,15 @@ class ProvisionError(RuntimeError):
     """Fallo controlado de `provision` (descarga, checksum o extraccion)."""
 
 
-def _project_dir() -> Path:
-    """Raiz del proyecto (src/kdeconnect_mcp/cli.py -> raiz)."""
-    return Path(__file__).resolve().parents[2]
-
-
-def _listener_unit(project_dir: Path) -> str:
+def _listener_unit() -> str:
+    """Unidad systemd del listener; usa el interprete actual (venv del repo o `uv tool`)."""
     return f"""\
 [Unit]
 Description=kdeconnect-mcp listener (SMS, llamadas y notificaciones con redaccion PII)
 
 [Service]
-WorkingDirectory={project_dir}
-ExecStart={project_dir}/.venv/bin/python -m kdeconnect_mcp listen
+WorkingDirectory=%h
+ExecStart={sys.executable} -m kdeconnect_mcp listen
 Environment=KDCONNECT_MCP_CONFIG=%h/.config/kdeconnect-mcp/config.yaml
 Environment=PYTHONUNBUFFERED=1
 Restart=on-failure
@@ -440,11 +436,10 @@ def cmd_provision(cfg, args) -> int:
     tarball_url = f"{release_url}/{tarball_name}"
     checksums_url = f"{release_url}/checksums.txt"
     install_path = KCD_INSTALL_PATH.expanduser()
-    project_dir = _project_dir()
     unit_dir = _systemd_user_dir()
     kcd_unit_path = unit_dir / KCD_UNIT_NAME
     listener_unit_path = unit_dir / LISTENER_UNIT_NAME
-    listener_unit = _listener_unit(project_dir)
+    listener_unit = _listener_unit()
 
     if args.dry_run:
         print(f"Plan de provision kcd {tag} (dry-run: no se descarga ni escribe nada)")
@@ -454,7 +449,7 @@ def cmd_provision(cfg, args) -> int:
         print(f"  binario        : {install_path} (chmod +x)")
         print(f"  unidad kcd     : {kcd_unit_path}")
         print(f"  unidad listener: {listener_unit_path}")
-        print(f'                   ExecStart=uv run --directory "{project_dir}" kdeconnect-mcp listen')
+        print(f"                   ExecStart={sys.executable} -m kdeconnect_mcp listen")
         print("  systemctl      : --user daemon-reload")
         print(
             f"  systemctl      : --user enable --now {KCD_UNIT_NAME} {LISTENER_UNIT_NAME}"
@@ -539,7 +534,7 @@ def cmd_provision(cfg, args) -> int:
     print("Comandos utiles:")
     print("  kcd --version")
     print("  kcd devices")
-    print(f"  uv run --directory {project_dir} kdeconnect-mcp doctor")
+    print("  kdeconnect-mcp doctor")
 
     if failures:
         print()

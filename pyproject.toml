@@ -4,12 +4,29 @@ version = "0.1.0"
 description = "MCP server que expone llamadas, SMS y notificaciones de un movil via KDE Connect, con redaccion de PII (OTP, tarjetas, IBAN, telefonos)."
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["kdeconnect", "mcp", "sms", "notifications", "llm", "agents", "privacy", "redaction"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Communications",
+    "Topic :: Home Automation",
+]
+
 dependencies = [
     "mcp>=2.0.0",
     "dbus-next>=0.2.3",
     "PyYAML>=6.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/DaBlitzStein/kdeconnect-mcp"
+Issues = "https://github.com/DaBlitzStein/kdeconnect-mcp/issues"
 
 [project.scripts]
 kdeconnect-mcp = "kdeconnect_mcp.cli:main"

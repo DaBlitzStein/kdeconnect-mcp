@@ -63,6 +63,35 @@ uv sync
 uv run kdeconnect-mcp demo        # prueba el pipeline con datos simulados
 ```
 
+### Sin clonar el repo (uvx, recomendado)
+
+`uvx` es el equivalente a `npx` en Python: ejecuta el paquete sin clonar ni instalar.
+
+```bash
+# desde GitHub (disponible ya)
+uvx --from git+https://github.com/DaBlitzStein/kdeconnect-mcp kdeconnect-mcp serve
+
+# cuando este publicado en PyPI
+uvx kdeconnect-mcp serve
+```
+
+Configuracion en un agente MCP (opencode, Claude Code, Cursor, LibreFang...):
+
+```json
+"kdeconnect": {
+  "type": "local",
+  "command": ["uvx", "--from", "git+https://github.com/DaBlitzStein/kdeconnect-mcp", "kdeconnect-mcp", "serve"],
+  "enabled": true
+}
+```
+
+Listener permanente (captura aunque no haya agente abierto): instala la herramienta y provisiona:
+
+```bash
+uv tool install git+https://github.com/DaBlitzStein/kdeconnect-mcp   # o: uv tool install kdeconnect-mcp
+kdeconnect-mcp provision
+```
+
 ### Registrar en opencode
 
 En `~/.config/opencode/opencode.json`:
